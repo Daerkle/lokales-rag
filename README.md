@@ -17,7 +17,6 @@
 ✅ [**Flowise**](https://flowiseai.com/) – No/Low-Code KI-Agenten-Builder, der sehr gut mit n8n harmoniert
 ✅ [**Qdrant**](https://qdrant.tech/) – Open-Source, performanter Vektor-Store mit umfassender API
 ✅ [**SearXNG**](https://searxng.org/) – Open-Source-Metasuchmaschine, die Ergebnisse von bis zu 229 Diensten aggregiert
-✅ [**Caddy**](https://caddyserver.com/) – Managed HTTPS/TLS für eigene Domains
 ✅ [**Langfuse**](https://langfuse.com/) – Open-Source-Plattform für LLM-Engineering und Agenten-Überwachung
 
 ## Voraussetzungen
@@ -85,14 +84,75 @@ Hier ist ein detaillierter Plan, wie du das Projekt auf Proxmox VE installierst 
   ```
 - Prüfe mit `docker ps`, ob alle Container laufen.
 
-### 6. Portainer installieren (Port 9000)
+### 6. Portainer installieren (Port 8001)
 
 ```bash
 sudo docker volume create portainer_data
-sudo docker run -d -p 9000:9000 --name=portainer --restart=always \
+sudo docker run -d -p 8001:8000 --name=portainer --restart=always \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v portainer_data:/data portainer/portainer-ce
 ```
+### 6.1 Nginx Proxy Manager installieren (Optional)
+
+Um deine Dienste sicher über Domains mit HTTPS zugänglich zu machen, kannst du den Nginx Proxy Manager verwenden.
+
+**Docker Compose für Nginx Proxy Manager:**
+
+Füge den folgenden Service zu deiner `docker-compose.yml` hinzu oder erstelle eine separate `docker-compose.nginx.yml`:
+
+```yaml
+version: '3.8'
+services:
+  app:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+**Erstanmeldung Nginx Proxy Manager:**  
+Benutzername: `admin@example.com`  
+Passwort: `changeme`
+    ports:
+      # Diese Ports sind für den Zugriff auf den Proxy Manager und die weitergeleiteten Dienste
+      - '80:80'    # HTTP
+      - '443:443'  # HTTPS
+      # Admin-Interface des Nginx Proxy Managers
+      - '81:81'
+    volumes:
+      - ./nginxproxymanager/data:/data
+      - ./nginxproxymanager/letsencrypt:/etc/letsencrypt
+```
+
+**Starten des Nginx Proxy Managers:**
+
+Wenn du eine separate Compose-Datei verwendest:
+```bash
+sudo docker-compose -f docker-compose.nginx.yml up -d
+```
+Andernfalls, wenn du es zur Haupt-`docker-compose.yml` hinzugefügt hast, starte alle Dienste neu:
+```bash
+sudo docker-compose up -d --force-recreate
+```
+
+**Konfiguration des Nginx Proxy Managers:**
+
+1.  Öffne das Admin-Interface des Nginx Proxy Managers im Browser: `http://[IP-deiner-VM]:81`
+2.  Standard-Anmeldedaten beim ersten Start:
+    *   Email: `admin@example.com`
+    *   Passwort: `changeme`
+3.  Ändere sofort das Passwort.
+4.  **Proxy Hosts einrichten:**
+    *   Gehe zu "Hosts" -> "Proxy Hosts".
+    *   Klicke auf "Add Proxy Host".
+    *   **Domain Names:** Gib deine Domain ein (z.B. `n8n.deinedomain.com`).
+    *   **Scheme:** `http`
+    *   **Forward Hostname / IP:** `127.0.0.1` (oder die IP des Dienstes, falls er in einem anderen Docker-Netzwerk oder einer anderen VM läuft).
+    *   **Forward Port:** Der Port des Dienstes, den du freigeben möchtest (z.B. `5678` für n8n, `71` für einen benutzerdefinierten Dienst).
+    *   Aktiviere "Block Common Exploits".
+    *   **SSL-Tab:**
+        *   Wähle "Request a new SSL Certificate" mit Let's Encrypt.
+        *   Aktiviere "Force SSL" und "HTTP/2 Support".
+        *   Stimme den Let's Encrypt ToS zu.
+        *   Speichern.
+
+Der Nginx Proxy Manager kümmert sich nun um die SSL-Zertifikate und leitet Anfragen an deine internen Dienste weiter. Für den Port 71 würdest du entsprechend einen Proxy Host einrichten, der auf `127.0.0.1` und Port `71` zeigt, und diesem eine Domain zuweisen.
 
 ### 7. Webinterfaces aufrufen
 
@@ -101,7 +161,7 @@ sudo docker run -d -p 9000:9000 --name=portainer --restart=always \
 - **Open WebUI:**
   Im Browser öffnen: `http://[IP-der-VM]:3000`
 - **Portainer:**
-  Im Browser öffnen: `http://[IP-der-VM]:9000` (Ersteinrichtung im Browser)
+  Im Browser öffnen: `http://[IP-der-VM]:8001` (Ersteinrichtung im Browser)
 
 
 ### 8. Workflows und Funktionen einrichten
@@ -233,7 +293,7 @@ Vor dem Ausführen der obigen Befehle:
 
 1. Führe die Befehle als root aus, um die notwendigen Ports zu öffnen:
    - ufw enable
-   - ufw allow 8000 && ufw allow 9000 && ufw allow 3000 && ufw allow 5678 && ufw allow 3002 && ufw allow 80 && ufw allow 443
+   - ufw allow 8000 && ufw allow 8001 && ufw allow 3000 && ufw allow 5678 && ufw allow 3002 && ufw allow 80 && ufw allow 443
    - ufw allow 3001 (für Flowise, Authentifizierung siehe [Flowise Doku](https://docs.flowiseai.com/configuration/environment-variables))
    - ufw allow 8080 (für SearXNG)
    - ufw allow 11434 (für Ollama)
@@ -358,3 +418,43 @@ Das selbstgehostete KI-Starter-Kit erstellt einen freigegebenen Ordner (standard
 - [Lokaler Datei-Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.localfiletrigger/)
 - [Befehl ausführen](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.executecommand/)
 
+
+## Bugfixes: Docker Compose anpassen
+
+Falls es Probleme mit der Docker Compose Version gibt (z.B. auf neueren Systemen oder nach Updates), führe folgende Schritte aus, um die aktuelle Docker Compose CLI-Version zu installieren:
+
+```bash
+sudo apt remove docker-compose -y
+mkdir -p ~/.docker/cli-plugins/
+curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+chmod +x ~/.docker/cli-plugins/docker-compose
+```
+
+Danach steht das aktuelle `docker compose`-Kommando zur Verfügung.
+
+## Alles updaten (Update-Anleitung)
+
+Um alle Container und das Repository auf den neuesten Stand zu bringen, führe folgende Schritte aus:
+
+1. Repository aktualisieren:
+   ```bash
+   git pull
+   ```
+
+2. Container stoppen und alte Images entfernen:
+   ```bash
+   sudo docker compose down
+   sudo docker system prune -af
+   ```
+
+3. Neueste Images herunterladen:
+   ```bash
+   sudo docker compose pull
+   ```
+
+4. Container wieder starten:
+   ```bash
+   sudo docker compose up -d
+   ```
+
+Damit sind alle Services und Images auf dem aktuellen Stand.
