@@ -1,16 +1,9 @@
 # Selbstgehostetes KI-Paket
 
-**Selbstgehostetes KI-Paket** ist eine offene Docker-Compose-Vorlage, die schnell eine voll ausgestattete lokale KI- und Low-Code-Entwicklungsumgebung bereitstellt – inklusive Ollama für lokale LLMs, Open WebUI als Oberfläche für die Interaktion mit deinen N8N-Agenten sowie Supabase für Datenbank, Vektor-Store und Authentifizierung.
+**Selbstgehostetes KI-Paket** ist eine offene Docker-Compose-Vorlage, die schnell eine voll ausgestattete lokale KI- und Low-Code-Entwicklungsumgebung bereitstellt – inklusive Ollama für lokale LLMs, Open WebUI als Oberfläche für die Interaktion mit deinen N8N-Agenten sowie Supabase für Datenbank, Vektor-Store und Authentifizierung. Inklusive n8n <-> Openwebui Pipeline
 
-Dies ist Coles Version mit einigen Verbesserungen und der Ergänzung von Supabase, Open WebUI, Flowise, Langfuse, SearXNG und Caddy!
-Außerdem sind die lokalen RAG KI-Agent-Workflows aus dem Video automatisch in deiner n8n-Instanz enthalten, wenn du dieses Setup statt des Basis-Setups von n8n verwendest!
 
-## Wichtige Links
-
-- [Local AI Community](https://thinktank.ottomator.ai/c/local-ai/18) Forum im oTTomator Think Tank
-- [GitHub Kanban Board](https://github.com/Daerkle/lokales-rag/projects) für Feature-Implementierung und Bugfixes.
-- [Original Local AI Starter Kit](https://github.com/n8n-io/self-hosted-ai-starter-kit) vom n8n-Team
-- Lade meine N8N + OpenWebUI Integration [direkt auf der Open WebUI Seite herunter.](https://openwebui.com/f/coleam/n8n_pipe/) (weitere Anweisungen unten)
+##  Links
 
 ![n8n.io - Screenshot](https://raw.githubusercontent.com/n8n-io/self-hosted-ai-starter-kit/main/assets/n8n-demo.gif)
 
@@ -35,6 +28,87 @@ Vor dem Start stelle sicher, dass folgende Software installiert ist:
 - [Git/GitHub Desktop](https://desktop.github.com/) – Für einfaches Repository-Management
 - [Docker/Docker Desktop](https://www.docker.com/products/docker-desktop/) – Zum Ausführen aller Dienste erforderlich
 
+## Installation auf Proxmox VE
+
+Hier ist ein detaillierter Plan, wie du das Projekt auf Proxmox VE installierst und startest. Ich gehe davon aus, dass du eine VM oder einen LXC-Container mit Ubuntu (empfohlen) verwendest.
+
+### 1. VM/LXC-Container in Proxmox anlegen
+
+- **Im Proxmox Webinterface**:
+  - Klicke auf „Erstellen“ > „CT“ (Container) oder „VM“ (Virtuelle Maschine).
+  - Wähle ein Ubuntu-Image (z.B. Ubuntu 22.04 LTS).
+  - Weise ausreichend CPU, RAM (mind. 8GB empfohlen) und Speicherplatz zu (mind. 20GB).
+  - Netzwerk konfigurieren (am besten DHCP oder statische IP).
+  - Installation abschließen und Container/VM starten.
+
+### 2. Grundsystem vorbereiten
+
+- **Per Konsole/SSH in die VM/den Container einloggen**
+- System aktualisieren:
+  ```bash
+  sudo apt update && sudo apt upgrade -y
+  ```
+- Notwendige Pakete installieren:
+  ```bash
+  sudo apt install -y git docker.io docker-compose python3 python3-pip
+  ```
+- Docker-Dienst starten und aktivieren:
+  ```bash
+  sudo systemctl enable --now docker
+  ```
+
+### 3. Projekt klonen
+
+- Wechsle in das gewünschte Verzeichnis (z.B. `/opt`):
+  ```bash
+  cd /opt
+  ```
+- Repository klonen:
+  ```bash
+  git clone https://github.com/Daerkle/lokales-rag.git
+  cd lokales-rag
+  ```
+
+### 4. Umgebungsvariablen einrichten
+
+- Kopiere die Beispiel-Umgebungsdatei:
+  ```bash
+  cp .env.example .env
+  ```
+- Öffne `.env` mit einem Editor (z.B. `nano .env`) und trage sichere Werte für die Variablen ein (Passwörter, Keys etc.).
+
+### 5. Dienste starten
+
+- Starte alle Services mit Docker Compose:
+  ```bash
+  sudo docker-compose up -d
+  ```
+- Prüfe mit `docker ps`, ob alle Container laufen.
+
+### 6. Portainer installieren (Port 9000)
+
+```bash
+sudo docker volume create portainer_data
+sudo docker run -d -p 9000:9000 --name=portainer --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data portainer/portainer-ce
+```
+
+### 7. Webinterfaces aufrufen
+
+- **n8n:**
+  Im Browser öffnen: `http://[IP-der-VM]:5678`
+- **Open WebUI:**
+  Im Browser öffnen: `http://[IP-der-VM]:3000`
+- **Portainer:**
+  Im Browser öffnen: `http://[IP-der-VM]:9000` (Ersteinrichtung im Browser)
+
+
+### 8. Workflows und Funktionen einrichten
+
+- Folge der deutschen Anleitung im [`README.md`](README.md:1) für die Einrichtung der Workflows, Zugangsdaten und Funktionen.
+
+---
 ## Installation
 
 Repository klonen und ins Projektverzeichnis wechseln:
@@ -159,7 +233,7 @@ Vor dem Ausführen der obigen Befehle:
 
 1. Führe die Befehle als root aus, um die notwendigen Ports zu öffnen:
    - ufw enable
-   - ufw allow 8000 && ufw allow 3000 && ufw allow 5678 && ufw allow 3002 && ufw allow 80 && ufw allow 443
+   - ufw allow 8000 && ufw allow 9000 && ufw allow 3000 && ufw allow 5678 && ufw allow 3002 && ufw allow 80 && ufw allow 443
    - ufw allow 3001 (für Flowise, Authentifizierung siehe [Flowise Doku](https://docs.flowiseai.com/configuration/environment-variables))
    - ufw allow 8080 (für SearXNG)
    - ufw allow 11434 (für Ollama)
@@ -251,9 +325,6 @@ n8n bietet viele Inhalte für den schnellen Einstieg in KI-Konzepte und Nodes. B
 - [Demonstration der Hauptunterschiede zwischen Agenten und Chains](https://docs.n8n.io/advanced-ai/examples/agent-chain-comparison/)
 - [Was sind Vektor-Datenbanken?](https://docs.n8n.io/advanced-ai/examples/understand-vector-databases/)
 
-## 🎥 Video-Anleitung
-
-- [Coles Anleitung zum Local AI Starter Kit](https://youtu.be/pOsO40HSbOo)
 
 ## 🛍️ Weitere KI-Vorlagen
 
@@ -287,6 +358,3 @@ Das selbstgehostete KI-Starter-Kit erstellt einen freigegebenen Ordner (standard
 - [Lokaler Datei-Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.localfiletrigger/)
 - [Befehl ausführen](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.executecommand/)
 
-## 📜 Lizenz
-
-Dieses Projekt (ursprünglich vom n8n-Team erstellt, Link am Anfang des README) ist unter der Apache License 2.0 lizenziert – siehe die [LICENSE](LICENSE)-Datei für Details.
