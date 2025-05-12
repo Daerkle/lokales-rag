@@ -84,13 +84,16 @@ Hier ist ein detaillierter Plan, wie du das Projekt auf Proxmox VE installierst 
   ```
 - Prüfe mit `docker ps`, ob alle Container laufen.
 
-### 6. Portainer installieren (Port 8001)
+### 6. Portainer installieren (Port 9000)
 
 ```bash
-sudo docker volume create portainer_data
-sudo docker run -d -p 8001:8000 --name=portainer --restart=always \
+docker run -d \
+  -p 9010:9000 \
+  --name=portainer \
+  --restart=always \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v portainer_data:/data portainer/portainer-ce
+  -v portainer_data:/data \
+  portainer/portainer-ce
 ```
 ### 6.1 Nginx Proxy Manager installieren (Optional)
 
