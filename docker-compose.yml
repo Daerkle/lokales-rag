@@ -9,6 +9,7 @@ volumes:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:
   langfuse_minio_data:
+  pihole_etc:
 
 x-n8n: &service-n8n
   image: n8nio/n8n:latest
@@ -37,17 +38,24 @@ x-ollama: &service-ollama
 
 x-init-ollama: &init-ollama
   image: ollama/ollama:latest
-  container_name: ollama-pull-llama
+  container_name: ollama-pull-models
   volumes:
     - ollama_storage:/root/.ollama
   entrypoint: /bin/sh
   command:
     - "-c"
-    - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
-    # For a larger context length verison of the model, run these commands:
-    # echo "FROM qwen2.5:7b-instruct-q4_K_M\n\nPARAMETER num_ctx 8096" > Modelfile
-    # ollama create qwen2.5:7b-8k -f ./Modelfile
-    # Change the name of the LLM and num_ctx as you see fit.
+    - |
+      sleep 3
+      OLLAMA_HOST=ollama:11434 ollama pull llama3.3:70b-instruct-q4_0
+      OLLAMA_HOST=ollama:11434 ollama pull deepseek-r1
+      OLLAMA_HOST=ollama:11434 ollama pull qwen2.5
+      OLLAMA_HOST=ollama:11434 ollama pull gemma2
+      OLLAMA_HOST=ollama:11434 ollama pull llama3.2
+      OLLAMA_HOST=ollama:11434 ollama pull llama3.2-vision
+      OLLAMA_HOST=ollama:11434 ollama pull granite3.3
+      OLLAMA_HOST=ollama:11434 ollama pull mxbai-embed-large
+      OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text
+      OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-small
 
 services:
   flowise:
@@ -338,21 +346,63 @@ services:
       - "/dev/kfd"
       - "/dev/dri"
 
-  ollama-pull-llama-cpu:
+  ollama-pull-models-cpu:
     profiles: ["cpu"]
     <<: *init-ollama
     depends_on:
       - ollama-cpu
 
-  ollama-pull-llama-gpu:
+  ollama-pull-models-gpu:
     profiles: ["gpu-nvidia"]
     <<: *init-ollama
     depends_on:
       - ollama-gpu
 
-  ollama-pull-llama-gpu-amd:
+  ollama-pull-models-gpu-amd:
     profiles: [gpu-amd]
     <<: *init-ollama
     image: ollama/ollama:rocm
     depends_on:
      - ollama-gpu-amd
+
+  # Pi-hole DNS server with ad-blocking
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    restart: unless-stopped
+    ports:
+      # DNS Ports
+      - "53:53/tcp"
+      - "53:53/udp"
+      # Pi-hole Web Interface (Port 80 used by nginx-proxy-manager)
+      - "8053:80/tcp"
+      # HTTPS Port for Pi-hole
+      - "8054:443/tcp"
+      # Uncomment if using Pi-hole as DHCP server
+      #- "67:67/udp"
+      # Uncomment if using Pi-hole as NTP server
+      #- "123:123/udp"
+    environment:
+      # Set timezone to match your location
+      TZ: 'Europe/Berlin'
+      # Pi-hole admin password - change this!
+      FTLCONF_webserver_api_password: '${PIHOLE_PASSWORD:-pihole-admin-password}'
+      # DNS listening mode for Docker bridge network
+      FTLCONF_dns_listeningMode: 'all'
+    volumes:
+      # Persist Pi-hole configuration and databases
+      - pihole_etc:/etc/pihole
+      # Uncomment for custom dnsmasq configurations (v5 to v6 migration)
+      #- './etc-dnsmasq.d:/etc/dnsmasq.d'
+    cap_add:
+      # Required for DHCP server functionality
+      - NET_ADMIN
+      # Required for NTP client functionality
+      - SYS_TIME
+      # Optional: better process scheduling
+      - SYS_NICE
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "3"
