@@ -371,9 +371,9 @@ services:
     image: pihole/pihole:latest
     restart: unless-stopped
     ports:
-      # DNS Ports
-      - "53:53/tcp"
-      - "53:53/udp"
+      # DNS Ports (using alternative ports to avoid conflicts)
+      - "5353:53/tcp"
+      - "5353:53/udp"
       # Pi-hole Web Interface (Port 80 used by nginx-proxy-manager)
       - "8053:80/tcp"
       # HTTPS Port for Pi-hole
