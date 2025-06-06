@@ -63,7 +63,7 @@ services:
     entrypoint: /bin/sh -c "sleep 3; flowise start"
 
   open-webui:
-    image: ghcr.io/daerkle/oidsgvo:latest
+    image: ghcr.io/daerkle/oidsgvo:amd64
     restart: unless-stopped
     container_name: open-webui
     ports:
